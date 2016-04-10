@@ -19,11 +19,11 @@
         Public Function GetBytes() As Byte()
             Dim hccaBuff(len - 1) As Byte
             For i As Integer = 0 To 32 - 1
-                memcpy(hccaBuff, i * 4, BitConverter.GetBytes(intr(i)), 0, 4)
+                Utils.memcpy(hccaBuff, i * 4, BitConverter.GetBytes(intr(i)), 0, 4)
             Next
-            memcpy(hccaBuff, 128, BitConverter.GetBytes(frame), 0, 2)
-            memcpy(hccaBuff, 130, BitConverter.GetBytes(pad), 0, 2)
-            memcpy(hccaBuff, 132, BitConverter.GetBytes(done), 0, 4)
+            Utils.memcpy(hccaBuff, 128, BitConverter.GetBytes(frame), 0, 2)
+            Utils.memcpy(hccaBuff, 130, BitConverter.GetBytes(pad), 0, 2)
+            Utils.memcpy(hccaBuff, 132, BitConverter.GetBytes(done), 0, 4)
             Return hccaBuff
         End Function
     End Class

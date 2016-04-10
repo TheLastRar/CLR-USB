@@ -413,7 +413,7 @@ Namespace USB.Keyboard
             SyncLock KeysPressed
                 'PollAPI()
                 'check if forground
-                If hWndTop <> GetForegroundWindow() Then
+                If hWndTop <> Utils.GetForegroundWindow() Then
                     KeysPressed.Clear()
                 End If
 
@@ -519,11 +519,11 @@ Namespace USB.Keyboard
                     'value is the descriptor type/id
                     Select Case (value >> 8)
                         Case USB_DT_DEVICE
-                            memcpy(data, 0, qemu_keyboard_dev_descriptor, 0,
+                            Utils.memcpy(data, 0, qemu_keyboard_dev_descriptor, 0,
                                    qemu_keyboard_dev_descriptor.Count)
                             ret = qemu_keyboard_dev_descriptor.Count
                         Case USB_DT_CONFIG
-                            memcpy(data, 0, qemu_keyboard_config_descriptor, 0,
+                            Utils.memcpy(data, 0, qemu_keyboard_config_descriptor, 0,
                                    qemu_keyboard_config_descriptor.Count)
                             ret = qemu_keyboard_config_descriptor.Count
                         Case USB_DT_STRING
@@ -568,7 +568,7 @@ Namespace USB.Keyboard
                     '/* hid specific requests */
                     Select Case (value >> 8)
                         Case &H22
-                            memcpy(data, 0, qemu_keyboard_hid_report_descriptor, 0,
+                            Utils.memcpy(data, 0, qemu_keyboard_hid_report_descriptor, 0,
                                    qemu_keyboard_hid_report_descriptor.Count)
                             ret = qemu_keyboard_hid_report_descriptor.Count
                         Case Else
@@ -877,7 +877,7 @@ fail:
         End Sub
 
         Public Overrides Function open(_hWnd As IntPtr) As Integer
-            hWndTop = GetTopParent(_hWnd)
+            hWndTop = Utils.GetTopParent(_hWnd)
 
             'hookinto APIs here (if needed)
             Select Case UseAPI
@@ -895,7 +895,7 @@ fail:
         End Function
         Public Overrides Sub close()
             'unhook APIs here (if needed)
-            hostKeyboard.Close()
+            hostKeyboard.Dispose()
             hostKeyboard = Nothing
             Log_Verb("Close Keyboard")
         End Sub

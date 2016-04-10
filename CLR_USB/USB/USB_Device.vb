@@ -43,7 +43,7 @@
                     If (len <> 8) Then
                         GoTo fail
                     End If
-                    memcpy(setup_buf, 0, data, 0, 8)
+                    Utils.memcpy(setup_buf, 0, data, 0, 8)
 
                     setup_len = (Convert.ToInt32(setup_buf(7)) << 8) Or setup_buf(6)
                     setup_index = 0
@@ -96,7 +96,7 @@
                                             l = len
                                         End If
                                         'memcpy(data, s->data_buf + s->setup_index, l);
-                                        memcpy(data, 0, data_buf, setup_index, l)
+                                        Utils.memcpy(data, 0, data_buf, setup_index, l)
                                         setup_index += l
                                         If (setup_index >= setup_len) Then
                                             setup_state = SETUP_STATE_ACK
@@ -133,7 +133,7 @@
                                             l = len
                                         End If
                                         'memcpy(s->data_buf + s->setup_index, data, l);
-                                        memcpy(data_buf, setup_index, data, 0, l)
+                                        Utils.memcpy(data_buf, setup_index, data, 0, l)
                                         setup_index += l
                                         If (setup_index >= setup_len) Then
                                             setup_state = SETUP_STATE_ACK

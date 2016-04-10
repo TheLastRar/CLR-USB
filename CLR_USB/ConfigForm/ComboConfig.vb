@@ -3,6 +3,7 @@ Imports System.Windows.Forms.Control
 Namespace Config
     Class ComboConfig
         Implements IConfigControl
+        Implements IDisposable
 
         Private Const Spacing As Integer = 6
         Private Const ControlsTop As Integer = 20
@@ -98,5 +99,11 @@ Namespace Config
                 AdjustWidth()
             End Set
         End Property
+
+        Public Sub Dispose() Implements IDisposable.Dispose
+            ContainerBox.Dispose()
+            SelectionBox.Dispose()
+            ConfigBox.Dispose()
+        End Sub
     End Class
 End Namespace

@@ -5,30 +5,19 @@ Namespace USB.Keyboard
     Class WM_Keyboard
         Inherits API_Keyboard
 
-        <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)> _
-        Private Overloads Shared Function SetWindowsHookEx(ByVal idHook As Integer, ByVal HookProc As KBDLLHookProc, ByVal hInstance As IntPtr, ByVal wParam As IntPtr) As IntPtr
-        End Function
-        <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)> _
-        Protected Overloads Shared Function CallNextHookEx(ByVal idHook As IntPtr, ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
-        End Function
-        <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)> _
-        Private Overloads Shared Function UnhookWindowsHookEx(ByVal idHook As IntPtr) As Boolean
-        End Function
+        Private Class NativeMethods
+            <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)>
+            Public Shared Function SetWindowsHookEx(ByVal idHook As Integer, ByVal HookProc As KBDLLHookProc, ByVal hInstance As IntPtr, ByVal wParam As IntPtr) As IntPtr
+            End Function
+            <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)>
+            Public Shared Function CallNextHookEx(ByVal idHook As IntPtr, ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
+            End Function
+            <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)>
+            Public Shared Function UnhookWindowsHookEx(ByVal idHook As IntPtr) As Boolean
+            End Function
+        End Class
 
-        '<DllImport("kernel32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)> _
-        'Private Shared Function LoadLibrary(ByVal lpFileName As String) As IntPtr
-        'End Function
-        '<DllImport("kernel32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)> _
-        'Private Shared Function LoadLibraryEx(ByVal lpFileName As String, ByVal hfile As IntPtr, ByVal dwFlags As Integer) As IntPtr
-        'End Function
-        '<DllImport("kernel32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)> _
-        'Private Shared Function FreeLibrary(ByVal hModule As IntPtr) As Boolean
-        'End Function
-        '<DllImport("kernel32.dll", CharSet:=CharSet.Auto, SetLastError:=True)> _
-        'Private Shared Function GetModuleHandle(lpModuleName As String) As IntPtr
-        'End Function
-
-        <StructLayout(LayoutKind.Sequential)> _
+        <StructLayout(LayoutKind.Sequential)>
         Private Structure KBDLLHOOKSTRUCT
             Public vkCode As UInt32
             Public scanCode As UInt32
@@ -37,7 +26,7 @@ Namespace USB.Keyboard
             Public dwExtraInfo As UIntPtr
         End Structure
 
-        <Flags()> _
+        <Flags()>
         Private Enum KBDLLHOOKSTRUCTFlags As UInt32
             LLKHF_EXTENDED = &H1
             LLKHF_INJECTED = &H10
@@ -45,7 +34,6 @@ Namespace USB.Keyboard
             LLKHF_UP = &H80
         End Enum
 
-        'Protected Const LOAD_LIBRARY_AS_DATAFILE As Integer = 2
         Protected Const WH_KEYBOARD_LL As Integer = 13
         Protected Const HC_ACTION As Integer = 0
 
@@ -71,7 +59,7 @@ Namespace USB.Keyboard
                         RaiseKeyUp(CType(struct.vkCode, Keys))
                 End Select
             End If
-            Return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam)
+            Return NativeMethods.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam)
         End Function
 
         Public Sub New(_hWnd As IntPtr)
@@ -81,18 +69,9 @@ Namespace USB.Keyboard
             ''checks it, but doesn't actually use it. This got fixed in Windows, somewhere around Win7 SP1.
             ''Also works with nullptr on latest WinVista
 
-            'Dim Loc As String = New Uri(Reflection.Assembly.GetExecutingAssembly.CodeBase).LocalPath
             Dim hMod As IntPtr = IntPtr.Zero
-            'hMod = LoadLibraryEx(Loc, IntPtr.Zero, LOAD_LIBRARY_AS_DATAFILE)
-            'If hMod = IntPtr.Zero Then
-            '    Throw New Exception("Could not get hMod. Error: " + Marshal.GetLastWin32Error.ToString())
-            'End If
 
-            HHookID = SetWindowsHookEx(WH_KEYBOARD_LL, KBDLLHookProcDelegate, hMod, IntPtr.Zero)
-
-            'If Not hMod = IntPtr.Zero Then
-            '    FreeLibrary(hMod)
-            'End If
+            HHookID = NativeMethods.SetWindowsHookEx(WH_KEYBOARD_LL, KBDLLHookProcDelegate, hMod, IntPtr.Zero)
 
             If HHookID = IntPtr.Zero Then
                 Throw New Exception("Could not set keyboard hook. Error: " + Marshal.GetLastWin32Error.ToString())
@@ -101,9 +80,11 @@ Namespace USB.Keyboard
 
         Public Overrides Sub Close()
             If Not HHookID = IntPtr.Zero Then
-                UnhookWindowsHookEx(HHookID)
+                NativeMethods.UnhookWindowsHookEx(HHookID)
                 HHookID = IntPtr.Zero
             End If
         End Sub
+
+
     End Class
 End Namespace

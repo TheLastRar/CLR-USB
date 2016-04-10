@@ -146,16 +146,16 @@ Class CLR_USB
             End If
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Sub
     Public Shared Function Open(hWnd As IntPtr) As Int32
         Try
             Log_Info("Opening " & CLR_PSE.PS2EgetLibName())
 
-            If (IsAWindow(hWnd)) Then
+            If (Utils.IsAWindow(hWnd)) Then
                 ''OK
-            ElseIf (hWnd <> IntPtr.Zero AndAlso IsAWindow(Marshal.ReadIntPtr(hWnd))) Then
+            ElseIf (hWnd <> IntPtr.Zero AndAlso Utils.IsAWindow(Marshal.ReadIntPtr(hWnd))) Then
                 hWnd = Marshal.ReadIntPtr(hWnd)
             Else
                 Throw New Exception("Invalid hWnd")
@@ -188,7 +188,7 @@ Class CLR_USB
             End If
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Sub
     Public Shared Function USBread8(addr As UInt32) As Byte
@@ -206,7 +206,7 @@ Class CLR_USB
             Return returnval
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Function
 
@@ -222,7 +222,7 @@ Class CLR_USB
             qemu_ohci.mem_write(addr, value)
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Sub
     Public Shared Sub USBirqCallback(callback As CLR_PSE_Callbacks.CLR_CyclesCallback)
@@ -249,7 +249,7 @@ Class CLR_USB
             Return fp
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Function
 
@@ -277,7 +277,7 @@ Class CLR_USB
             Reset()
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Sub
     Public Shared Sub SetSettingsDir(dir As String)
@@ -325,7 +325,7 @@ Class CLR_USB
             End If
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
-            Throw e
+            Throw
         End Try
     End Sub
 
@@ -360,7 +360,7 @@ Class CLR_USB
         Log_Info("Pre Padding Size = " & sdBytes.Length & " bytes")
 
         Dim PaddedData(PaddedSize - 1) As Byte
-        memcpy(PaddedData, 0, sdBytes, 0, sdBytes.Length)
+        Utils.memcpy(PaddedData, 0, sdBytes, 0, sdBytes.Length)
         Return PaddedData
     End Function
 

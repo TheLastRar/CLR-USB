@@ -447,11 +447,11 @@ Namespace OHCI
             Dim buf2(CInt(len - n - 1)) As Byte
 
             'copy buf into buf2
-            memcpy(buf2, 0, buf, CInt(n), CInt(len - n))
+            Utils.memcpy(buf2, 0, buf, CInt(n), CInt(len - n))
             'perform r/w
             cpu_physical_memory_rw(ptr, buf2, CInt(len - n), write)
             'copy buf2 back into buf
-            memcpy(buf, CInt(n), buf2, 0, CInt(len - n))
+            Utils.memcpy(buf, CInt(n), buf2, 0, CInt(len - n))
             Return True
 
             '}
@@ -475,11 +475,11 @@ Namespace OHCI
             'buf += n; 'we have an offset of n, but cpu_physical_memory_rw dosn't take an offset
             Dim buf2(CInt(len - n - 1)) As Byte
             'copy buf into buf2
-            memcpy(buf2, 0, buf, CInt(n), CInt(len - n))
+            Utils.memcpy(buf2, 0, buf, CInt(n), CInt(len - n))
             'perform r/w
             cpu_physical_memory_rw(ptr, buf2, CInt(len - n), write)
             'copy buf2 back into buf
-            memcpy(buf, CInt(n), buf2, 0, CInt(len - n))
+            Utils.memcpy(buf, CInt(n), buf2, 0, CInt(len - n))
             Return
             '}
         End Sub

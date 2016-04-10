@@ -1,4 +1,5 @@
-﻿Imports System.Runtime.InteropServices
+﻿Imports System.Diagnostics.CodeAnalysis
+Imports System.Runtime.InteropServices
 
 Namespace Global.PSE
     Public Enum CLR_PSE_FreezeMode As Integer
@@ -10,6 +11,7 @@ Namespace Global.PSE
     <StructLayout(LayoutKind.Sequential)>
     Public Structure CLR_PSE_FreezeData
         Public size As Integer
+        <SuppressMessage("Microsoft.Security", "CA2111:PointersShouldNotBeVisible")>
         Public data As IntPtr
     End Structure
 

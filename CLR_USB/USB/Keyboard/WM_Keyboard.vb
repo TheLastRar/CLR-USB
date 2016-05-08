@@ -48,17 +48,22 @@ Namespace USB.Keyboard
         Private HHookID As IntPtr = IntPtr.Zero
 
         Protected Function KeyboardHookProc(ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
-            If (nCode = HC_ACTION) Then
-                Dim struct As KBDLLHOOKSTRUCT
-                Select Case wParam.ToUInt64
-                    Case WM_KEYDOWN, WM_SYSKEYDOWN
-                        struct = CType(Marshal.PtrToStructure(lParam, struct.GetType()), KBDLLHOOKSTRUCT)
-                        RaiseKeyDown(CType(struct.vkCode, Keys))
-                    Case WM_KEYUP, WM_SYSKEYUP
-                        struct = CType(Marshal.PtrToStructure(lParam, struct.GetType()), KBDLLHOOKSTRUCT)
-                        RaiseKeyUp(CType(struct.vkCode, Keys))
-                End Select
-            End If
+            Try
+                If (nCode = HC_ACTION) Then
+                    Dim struct As KBDLLHOOKSTRUCT
+                    Select Case wParam.ToUInt64
+                        Case WM_KEYDOWN, WM_SYSKEYDOWN
+                            struct = CType(Marshal.PtrToStructure(lParam, struct.GetType()), KBDLLHOOKSTRUCT)
+                            RaiseKeyDown(CType(struct.vkCode, Keys))
+                        Case WM_KEYUP, WM_SYSKEYUP
+                            struct = CType(Marshal.PtrToStructure(lParam, struct.GetType()), KBDLLHOOKSTRUCT)
+                            RaiseKeyUp(CType(struct.vkCode, Keys))
+                    End Select
+                End If
+            Catch e As Exception
+                PSE.CLR_PSE_PluginLog.MsgBoxError(e)
+                Throw
+            End Try
             Return NativeMethods.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam)
         End Function
 
@@ -84,7 +89,6 @@ Namespace USB.Keyboard
                 HHookID = IntPtr.Zero
             End If
         End Sub
-
 
     End Class
 End Namespace

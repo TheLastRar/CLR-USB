@@ -927,7 +927,7 @@ fail:
             CLR_PSE_PluginLog.WriteLine(TraceEventType.[Error], CInt(USBLogSources.USBKeyboard), str)
         End Sub
         Private Shared Sub Log_Info(str As String)
-            CLR_PSE_PluginLog.WriteLine(TraceEventType.Information, CInt(USBLogSources.USBKeyboard), str)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.Information, USBLogSources.USBKeyboard, str)
         End Sub
         Private Shared Sub Log_Verb(str As String)
             CLR_PSE_PluginLog.WriteLine(TraceEventType.Verbose, CInt(USBLogSources.USBKeyboard), str)

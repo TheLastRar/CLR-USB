@@ -104,6 +104,10 @@ Class CLR_USB
         ''USB code present in plugin interface layer
     End Sub
 
+    'Private Shared Sub ErrorCatcher3Million(sender As Object, e As UnhandledExceptionEventArgs)
+    '    CLR_PSE_PluginLog.MsgBoxError(CType(e.ExceptionObject, Exception))
+    'End Sub
+
     Public Shared Function Init() As Int32
         Try
             LogInit()
@@ -115,7 +119,7 @@ Class CLR_USB
             'Initialize here.
             qemu_ohci = New OHCI.OHCI_State(&H1F801600, 2)
             CreateDevices()
-
+            'AddHandler AppDomain.CurrentDomain.UnhandledException, AddressOf ErrorCatcher3Million
             Return 0
         Catch e As Exception
             CLR_PSE_PluginLog.MsgBoxError(e)
@@ -124,6 +128,7 @@ Class CLR_USB
     End Function
     Public Shared Sub Shutdown()
         Try
+            'RemoveHandler AppDomain.CurrentDomain.UnhandledException, AddressOf ErrorCatcher3Million
             'Yes, we close things in the Shutdown routine, and
             'don't do anything in the close routine.
             DestroyDevices()

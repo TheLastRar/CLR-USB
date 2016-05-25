@@ -1,6 +1,7 @@
 ﻿Imports System.Diagnostics.CodeAnalysis
 Imports System.Runtime.InteropServices
 Imports System.Windows.Forms
+Imports PSE
 
 ''Credits for this section goes to http://www.codeproject.com/Articles/17123/Using-Raw-Input-from-C-to-handle-multiple-keyboard
 ''And LilyPad for how to actully get the Input Events
@@ -11,19 +12,13 @@ Namespace USB.Keyboard
 
         Private Class NativeMethods
             <DllImport("user32.dll", SetLastError:=True)>
-            Public Shared Function RegisterRawInputDevices(pRawInputDevice As RawInputDevice(), numberDevices As UInteger, size As UInteger) As Boolean
+            Public Shared Function RegisterRawInputDevices(pRawInputDevice As RawInputDevice(), numberDevices As UInteger, size As UInteger) As <MarshalAs(UnmanagedType.Bool)> Boolean
             End Function
             <DllImport("user32.dll", SetLastError:=True)>
             Public Shared Function GetRawInputDeviceList(pRawInputDeviceList As IntPtr, ByRef numberDevices As UInteger, size As UInteger) As UInteger
             End Function
             <DllImport("user32.dll", SetLastError:=True)>
             Public Shared Function GetRawInputDeviceInfo(hDevice As IntPtr, command As RawInputDeviceInfo, pData As IntPtr, ByRef size As UInteger) As UInteger
-            End Function
-            <DllImport("user32.dll", SetLastError:=True)>
-            Public Shared Function RegisterDeviceNotification(hRecipient As IntPtr, notificationFilter As IntPtr, flags As DeviceNotification) As IntPtr
-            End Function
-            <DllImport("user32.dll", SetLastError:=True)>
-            Public Shared Function UnregisterDeviceNotification(handle As IntPtr) As <MarshalAs(UnmanagedType.Bool)> Boolean
             End Function
             <DllImport("user32.dll", SetLastError:=True)>
             Public Shared Function GetRawInputData(hRawInput As IntPtr, command As DataCommand, <Out> pData As IntPtr, <[In], Out> ByRef size As Integer, sizeHeader As Integer) As IntPtr
@@ -65,14 +60,6 @@ Namespace USB.Keyboard
         Public Structure RawInputDeviceDictEntry
             Public DeviceDesc As String
             Public DeviceHandle As IntPtr
-        End Structure
-
-        Private Structure BroadcastDeviceInterface
-            Public dbcc_size As Int32
-            Public BroadcastDeviceType As BroadcastDeviceType
-            Private dbcc_reserved As Int32
-            Public dbcc_classguid As Guid
-            Public dbcc_name As Char
         End Structure
 
         <StructLayout(LayoutKind.Sequential)>
@@ -149,28 +136,6 @@ Namespace USB.Keyboard
             Public Flags As RawInputDeviceFlags
             Public Target As IntPtr
         End Structure
-
-        Private Enum BroadcastDeviceType
-            DBT_DEVTYP_OEM = 0
-            DBT_DEVTYP_DEVNODE = 1
-            DBT_DEVTYP_VOLUME = 2
-            DBT_DEVTYP_PORT = 3
-            DBT_DEVTYP_NET = 4
-            DBT_DEVTYP_DEVICEINTERFACE = 5
-            DBT_DEVTYP_HANDLE = 6
-        End Enum
-
-        Private Enum DeviceNotification
-            ''' <summary>The hRecipient parameter is a window handle.</summary>
-            DEVICE_NOTIFY_WINDOW_HANDLE = &H0
-            ''' <summary>The hRecipient parameter is a service status handle.</summary>
-            DEVICE_NOTIFY_SERVICE_HANDLE = &H1
-            ''' <summary>
-            ''' Notifies the recipient of device interface events for all device interface classes. (The dbcc_classguid member is ignored.)
-            ''' This value can be used only if the dbch_devicetype member is DBT_DEVTYP_DEVICEINTERFACE.
-            '''</summary>
-            DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = &H4
-        End Enum
 
         Private Enum DataCommand As UInteger
             RID_HEADER = &H10000005 ' Get the header information from the RAWINPUT structure.
@@ -260,7 +225,6 @@ Namespace USB.Keyboard
         Private Class RegistryAccess
             Public Shared Function GetDeviceKey(device As String) As Microsoft.Win32.RegistryKey
                 Dim split As String() = device.Substring(4).Split("#"c)
-
                 Dim ClassCode As String = split(0) '// ACPI (Class code)
                 Dim subClassCode As String = split(1) '// PNP0303 (SubClass code)
                 Dim protocolCode As String = split(2) '// 3&13c0b0c5&0 (Protocol code)
@@ -269,7 +233,6 @@ Namespace USB.Keyboard
         End Class
 #End Region
 
-        Shared ReadOnly DeviceInterfaceHid As New Guid("4D1E55B2-F16F-11CF-88CB-001111000030")
         Private Const KEYBOARD_OVERRUN_MAKE_CODE As Integer = &HFF
 
         Private Const RI_KEY_BREAK As Integer = &H1 '// Key Up (Key Down = 0)
@@ -277,28 +240,24 @@ Namespace USB.Keyboard
         Private Const SC_SHIFT_R As Integer = &H36
         Private Const WM_ACTIVATE As UInteger = (&H6)
         Private Const WM_INPUT As UInteger = (&HFF)
-        Private Const WM_USB_DEVICECHANGE As UInteger = (&H219)
+        Private Const WM_INPUT_DEVICE_CHANGE As UInteger = (&HFE)
         Private Const GWLP_WNDPROC As Integer = -4
 
         Private Const WM_USER_PING As UInteger = &H700
         Private PING_RET As IntPtr = New IntPtr(1234)
 
-        Private DNotifyID As IntPtr = IntPtr.Zero
-
         'SubClass Stuff
         Private myGSWndProcHandle As GCHandle
         Private myGSWndProcPointer As IntPtr = IntPtr.Zero
         Private eatenGSWndProcPointer As IntPtr = IntPtr.Zero
-
-        'Private myGuiWndProcHandle As GCHandle
-        'Private myGuiWndProcPointer As IntPtr = IntPtr.Zero
-        'Private eatenGuiWndProcPointer As IntPtr = IntPtr.Zero
         'end of subclass stuff
+
         Public ListOfDevices As New Dictionary(Of String, RawInputDeviceDictEntry)
         Private TargetDeviceString As String = ""
         Private TargetDeviceID As IntPtr = IntPtr.Zero
 
         Private rAPI_hWnd As IntPtr
+        Private hooked As Boolean = False
         Private GUI_hWnd As IntPtr
 
         Private sentry As New Object
@@ -336,9 +295,9 @@ Namespace USB.Keyboard
                 Throw New Exception("Failed to register raw input device(s). Error: " + Marshal.GetLastWin32Error().ToString())
             End If
 
-            SetTargetDevice()
+            hooked = True
 
-            DNotifyID = RegisterForDeviceNotification(rAPI_hWnd)
+            SetTargetDevice()
 
             'WM_USER_Beat = RegisterWindowMessage("CLRUSB_RawAPI_Beat")
             Dim beatThread As New Threading.Thread(AddressOf HeartBeat)
@@ -361,10 +320,10 @@ Namespace USB.Keyboard
                         End If
                         Dim ret As IntPtr = NativeMethods.SendMessage(rAPI_hWnd, WM_USER_PING, UIntPtr.Zero, IntPtr.Zero)
                         If Not ret = PING_RET Then
-                            Console.Error.WriteLine("WndProc Heart Beat Failed")
-                            Console.Error.WriteLine("USB Plugin RawAPI capture has probably stopped")
+                            Log_Error("WndProc Heart Beat Failed")
+                            Log_Error("USB Plugin RawAPI capture has probably stopped")
                             ' Console.Error.WriteLine("Pause and Resume emulation to recapture")
-                            Console.Error.WriteLine("Attempting to recapture")
+                            Log_Error("Attempting to recapture")
                             AllSubClassUnHook()
                             GSSubClassHook()
                             'endBeat = True
@@ -377,12 +336,12 @@ Namespace USB.Keyboard
         Public Delegate Function SubClassProcDelegate(ByVal hwnd As IntPtr, ByVal msg As UInteger, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
         Protected Function GSWndProc(ByVal _hWnd As IntPtr, ByVal msg As UInteger, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
             If rAPI_hWnd <> _hWnd Then
-                Console.Error.WriteLine("Mismatched window handles")
+                Log_Error("Mismatched window handles")
             End If
             Select Case msg
                 Case WM_INPUT
                     Handle_WM_INPUT(lParam)
-                Case WM_USB_DEVICECHANGE
+                Case WM_INPUT_DEVICE_CHANGE
                     SetTargetDevice()
                 Case WM_USER_PING
                     'Console.Error.WriteLine("Beat")
@@ -446,38 +405,6 @@ Namespace USB.Keyboard
                 End Select
             End If
             Return correctedKey
-        End Function
-
-        Private Function RegisterForDeviceNotification(parent As IntPtr) As IntPtr
-            Dim usbNotifyHandle As IntPtr = IntPtr.Zero
-            Dim bdi As New BroadcastDeviceInterface()
-            bdi.dbcc_size = Marshal.SizeOf(bdi)
-            bdi.BroadcastDeviceType = BroadcastDeviceType.DBT_DEVTYP_DEVICEINTERFACE
-            bdi.dbcc_classguid = DeviceInterfaceHid
-
-            Dim mem As IntPtr = IntPtr.Zero
-            Dim win32Err As Integer = 0
-            Try
-                mem = Marshal.AllocHGlobal(Marshal.SizeOf(GetType(BroadcastDeviceInterface)))
-                Marshal.StructureToPtr(bdi, mem, False)
-                usbNotifyHandle = NativeMethods.RegisterDeviceNotification(parent, mem, DeviceNotification.DEVICE_NOTIFY_WINDOW_HANDLE)
-                win32Err = Marshal.GetLastWin32Error()
-            Catch ex As Exception
-                Console.Error.WriteLine("Registration for device notifications Failed.")
-                Console.Error.WriteLine(ex.StackTrace)
-            Finally
-                Marshal.FreeHGlobal(mem)
-            End Try
-
-            If win32Err <> 0 Then
-                Throw New Exception("Registration for device notifications Failed. Error: " + win32Err.ToString())
-            End If
-            If usbNotifyHandle = IntPtr.Zero Then
-                Throw New Exception("Registration for device notifications Failed. Error: " + win32Err.ToString())
-            End If
-
-
-            Return usbNotifyHandle
         End Function
 
         Private Sub SetTargetDevice()
@@ -544,6 +471,10 @@ Namespace USB.Keyboard
         End Sub
 
         Private Shared Function GetDeviceDescription(device As String) As String
+            ''Wine Hackfix
+            If device = "\\?\WINE_KEYBOARD" Then
+                Return "WINE Keyboard"
+            End If
             Dim deviceKey As Microsoft.Win32.RegistryKey = RegistryAccess.GetDeviceKey(device)
             Dim deviceDesc As String = deviceKey.GetValue("DeviceDesc").ToString()
             deviceDesc = deviceDesc.Substring(deviceDesc.IndexOf(";"c) + 1)
@@ -578,7 +509,7 @@ Namespace USB.Keyboard
             End SyncLock
         End Sub
         Private Function SubClassHook(ByVal WindowHandle As IntPtr, ByVal FpToAdd As IntPtr) As IntPtr
-            Console.Error.WriteLine("Adding my WndProc Subclass")
+            Log_Info("Adding my WndProc Subclass")
             Dim ret As IntPtr
             If (IntPtr.Size = 4) Then
                 ret = New IntPtr(NativeMethods.SetWindowLong(WindowHandle, GWLP_WNDPROC, FpToAdd.ToInt32()))
@@ -589,12 +520,12 @@ Namespace USB.Keyboard
             If (ret = IntPtr.Zero) Then
                 Throw New Exception("Failed to SetWindowLong(Ptr). Error: " + Marshal.GetLastWin32Error().ToString())
             End If
-            Console.Error.WriteLine("Completed successfully")
+            Log_Info("Completed successfully")
             Return ret
         End Function
         Private Sub SubClassUnHook(ByVal WindowHandle As IntPtr, ByRef FpToReturn As IntPtr, ByVal ExpectedReturnFp As IntPtr)
             If Not FpToReturn = IntPtr.Zero Then
-                Console.Error.WriteLine("Removing my WndProc Subclass")
+                Log_Info("Removing my WndProc Subclass")
                 Dim ret As IntPtr
 
                 Dim win32Err As Integer
@@ -613,13 +544,13 @@ Namespace USB.Keyboard
                 End If
 
                 If ret = ExpectedReturnFp Then
-                    Console.Error.WriteLine("Returned WndProc is mine")
+                    Log_Info("Returned WndProc is mine")
                 Else
                     If ret = IntPtr.Zero Then
-                        Console.Error.WriteLine("Error, Unexpected return value, Win32Error: " & win32Err)
+                        Log_Error("Error, Unexpected return value, Win32Error: " & win32Err)
                     Else
                         'Console.Error.WriteLine("Returned WndProc isn't mine, take it back!")
-                        Console.Error.WriteLine("Error, Unexpected return value, undoing operation")
+                        Log_Error("Error, Unexpected return value, undoing operation")
                         If (IntPtr.Size = 4) Then
                             ret = New IntPtr(NativeMethods.SetWindowLong(WindowHandle, GWLP_WNDPROC, ret.ToInt32))
                         Else
@@ -627,7 +558,7 @@ Namespace USB.Keyboard
                         End If
                         win32Err = Marshal.GetLastWin32Error()
                         If ret = IntPtr.Zero Or win32Err <> 0 Then
-                            Console.Error.WriteLine("Error, Undo failed, Win32Error: " & win32Err)
+                            Log_Error("Error, Undo failed, Win32Error: " & win32Err)
                         End If
                     End If
                 End If
@@ -637,10 +568,7 @@ Namespace USB.Keyboard
         End Sub
 
         Public Overrides Sub Close()
-            If Not DNotifyID = IntPtr.Zero Then
-                NativeMethods.UnregisterDeviceNotification(DNotifyID)
-                DNotifyID = IntPtr.Zero
-
+            If hooked Then
                 'Leave Inputs running for lilypad (?)
                 'Lilypad seems to recover just fine
                 Dim rid(1 - 1) As RawInputDevice
@@ -649,11 +577,12 @@ Namespace USB.Keyboard
                 rid(0).Usage = HidUsage.Keyboard
                 rid(0).Flags = RawInputDeviceFlags.REMOVE
                 rid(0).Target = rAPI_hWnd
-
                 If Not (NativeMethods.RegisterRawInputDevices(rid, CUInt(rid.Length), CUInt(Marshal.SizeOf(rid(0))))) Then
                     'Don't Care
                     'Throw New Exception("Failed to register raw input device(s). Error: " + Marshal.GetLastWin32Error().ToString())
                 End If
+
+                hooked = False
             End If
 
             'Return The WndProc
@@ -667,6 +596,16 @@ Namespace USB.Keyboard
 
             'GS
             AllSubClassUnHook()
+        End Sub
+
+        Private Shared Sub Log_Error(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.[Error], (USBLogSources.USBKeyboard), str)
+        End Sub
+        Private Shared Sub Log_Info(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.Information, USBLogSources.USBKeyboard, str)
+        End Sub
+        Private Shared Sub Log_Verb(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.Verbose, (USBLogSources.USBKeyboard), str)
         End Sub
     End Class
 

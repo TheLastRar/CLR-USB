@@ -13,7 +13,7 @@ Namespace USB.Keyboard
             Public Shared Function CallNextHookEx(ByVal idHook As IntPtr, ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
             End Function
             <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)>
-            Public Shared Function UnhookWindowsHookEx(ByVal idHook As IntPtr) As Boolean
+            Public Shared Function UnhookWindowsHookEx(ByVal idHook As IntPtr) As <MarshalAs(UnmanagedType.Bool)> Boolean
             End Function
         End Class
 

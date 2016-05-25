@@ -141,7 +141,7 @@ Namespace Global.PSE
 
         Public Shared Sub MsgBoxError(e As Exception)
             Console.[Error].WriteLine(e.Message + Environment.NewLine + e.StackTrace)
-            System.Windows.Forms.MessageBox.Show("Encounted Exception! : " + Environment.NewLine + e.Message)
+            System.Windows.Forms.MessageBox.Show("Encounted Exception! : " + e.Message + Environment.NewLine + e.StackTrace)
             Try
                 'System.IO.File.WriteAllLines(logPath + "\\" + libraryName + " ERR.txt", new string[] { e.Message + Environment.NewLine + e.StackTrace });
                 If sources IsNot Nothing Then

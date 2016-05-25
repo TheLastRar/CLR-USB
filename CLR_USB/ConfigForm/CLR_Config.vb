@@ -93,6 +93,8 @@ Namespace Config
                 index += 1
             Next
 
+            RawAPI.Dispose()
+
             If SelectedIndex = -1 Then
                 SelectedIndex = RawAPISelectionStart
             End If

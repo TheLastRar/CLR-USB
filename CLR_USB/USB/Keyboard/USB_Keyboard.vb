@@ -18,12 +18,14 @@ Namespace USB.Keyboard
     Class USB_Keyboard
         Inherits USB_Device
         '/* HID interface requests */
-        Const GET_REPORT As Integer = &HA101
-        Const GET_IDLE As Integer = &HA102
-        Const GET_PROTOCOL As Integer = &HA103
+        Const GET_REPORT As Integer = ClassInterfaceRequest Or &H1
+        Const GET_IDLE As Integer = ClassInterfaceRequest Or &H2
+        Const GET_PROTOCOL As Integer = ClassInterfaceRequest Or &H3
+        'Const GET_INTERFACE As Integer = InterfaceRequest Or &HA
         Const SET_REPORT As Integer = ClassInterfaceOutRequest Or &H9
-        Const SET_IDLE As Integer = &H210A
-        Const SET_PROTOCOL As Integer = &H210B
+        Const SET_IDLE As Integer = ClassInterfaceOutRequest Or &HA
+        Const SET_PROTOCOL As Integer = ClassInterfaceOutRequest Or &HB
+        Const SET_INTERFACE As Integer = InterfaceOutRequest Or &H11
 
         Const LED_NUMPAD As Byte = (1 << 0)
         Const LED_CAPS As Byte = (1 << 1)
@@ -46,6 +48,7 @@ Namespace USB.Keyboard
         Dim Idle_timer As Integer = 0
 
         'LEDs
+        Dim LastLEDState As Byte = &HFF
         Dim NumLockOn As Boolean = False 'Some games (JakX) start with NumLock off
         Dim CapsLockOn As Boolean = False
         Dim ScrollLockOn As Boolean = False
@@ -559,6 +562,12 @@ Namespace USB.Keyboard
                     data(0) = 1
                     ret = 1
                 Case DeviceOutRequest Or USB_REQ_SET_CONFIGURATION
+                    'Setting the device config
+                    'Zero means unconfigured
+                    '1 is the 1st (and only) config
+                    If (value <> 1) Then
+                        GoTo fail
+                    End If
                     ret = 0
                 Case DeviceRequest Or USB_REQ_GET_INTERFACE
                     data(0) = 0
@@ -574,6 +583,14 @@ Namespace USB.Keyboard
                         Case Else
                             GoTo fail
                     End Select
+                    'Interface requests
+                Case InterfaceOutRequest Or USB_REQ_SET_INTERFACE
+                    'Setting the interface altanative setting
+                    'We only have 1 (index 0)
+                    If (value <> 0) Then
+                        GoTo fail
+                    End If
+                    ret = 0
                     'class interface requests
                 Case SET_PROTOCOL 'Boot vs report protocol
                     ret = 0
@@ -585,24 +602,28 @@ Namespace USB.Keyboard
                     NumLockOn = (data(0) And LED_NUMPAD) <> 0
                     CapsLockOn = (data(0) And LED_CAPS) <> 0
                     ScrollLockOn = (data(0) And LED_SCROLL) <> 0
-                    If NumLockOn Then
-                        Log_Info("NumPad ON")
-                    Else
-                        Log_Info("NumPad OFF")
-                    End If
-                    If CapsLockOn Then
-                        Log_Info("CapsLock ON")
-                    Else
-                        Log_Info("CapsLock OFF")
-                    End If
-                    If ScrollLockOn Then
-                        Log_Info("ScrollLock ON")
-                    Else
-                        Log_Info("ScrollLock OFF")
-                    End If
-                    If (data(0) And (LED_NUMPAD Or LED_CAPS Or LED_SCROLL)) = 0 AndAlso data(0) <> 0 Then
-                        Log_Error("Unkown LED ON")
-                        'GoTo fail
+                    If (data(0) <> LastLEDState) Then
+                        LastLEDState = data(0)
+                        If NumLockOn Then
+                            Log_Info("NumPad ON")
+                        Else
+                            Log_Info("NumPad OFF")
+                        End If
+                        If CapsLockOn Then
+                            Log_Info("CapsLock ON")
+                        Else
+                            Log_Info("CapsLock OFF")
+                        End If
+                        If ScrollLockOn Then
+                            Log_Info("ScrollLock ON")
+                        Else
+                            Log_Info("ScrollLock OFF")
+                        End If
+
+                        If (data(0) And (LED_NUMPAD Or LED_CAPS Or LED_SCROLL)) = 0 AndAlso data(0) <> 0 Then
+                            Log_Error("Unkown LED ON")
+                            'GoTo fail
+                        End If
                     End If
                     ret = 0
                 Case SET_IDLE
@@ -610,7 +631,7 @@ Namespace USB.Keyboard
                     ret = 0
                 Case Else
 fail:
-                    Log_Error("STALL with request=" & request & ", value=" & value & ", index=" & index & ", length = " & length)
+                    Log_Error("STALL with request=0x" & request.ToString("X") & ", value=" & value & ", index=" & index & ", length = " & length)
                     ret = USB_RET_STALL
             End Select
             Return ret

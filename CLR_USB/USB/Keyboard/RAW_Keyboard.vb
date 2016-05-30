@@ -335,18 +335,24 @@ Namespace USB.Keyboard
 
         Public Delegate Function SubClassProcDelegate(ByVal hwnd As IntPtr, ByVal msg As UInteger, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
         Protected Function GSWndProc(ByVal _hWnd As IntPtr, ByVal msg As UInteger, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
-            If rAPI_hWnd <> _hWnd Then
-                Log_Error("Mismatched window handles")
-            End If
-            Select Case msg
-                Case WM_INPUT
-                    Handle_WM_INPUT(lParam)
-                Case WM_INPUT_DEVICE_CHANGE
-                    SetTargetDevice()
-                Case WM_USER_PING
-                    'Console.Error.WriteLine("Beat")
-                    Return PING_RET
-            End Select
+            Try
+                If rAPI_hWnd <> _hWnd Then
+                    Log_Error("Mismatched window handles")
+                End If
+                Select Case msg
+                    Case WM_INPUT
+                        Handle_WM_INPUT(lParam)
+                    Case WM_INPUT_DEVICE_CHANGE
+                        SetTargetDevice()
+                    Case WM_USER_PING
+                        'Console.Error.WriteLine("Beat")
+                        Return PING_RET
+                End Select
+
+            Catch e As Exception
+                CLR_PSE_PluginLog.MsgBoxError(e)
+                Throw
+            End Try
 
             Return NativeMethods.CallWindowProc(eatenGSWndProcPointer, _hWnd, msg, wParam, lParam)
         End Function

@@ -13,6 +13,8 @@
         Public Const OHCI_ED_D_MASK As UInt32 = (3 << OHCI_ED_D_SHIFT)
         Public Const OHCI_ED_S As UInt32 = (1 << 13) '//speed 0 - full, 1 - low
         Public Const OHCI_ED_K As UInt32 = (1 << 14) '//skip ED if 1
+        Public Const OHCI_ED_MPS_SHIFT As UInt32 = 16
+        Public Const OHCI_ED_MPS_MASK As UInt32 = (&H7FF << OHCI_ED_MPS_SHIFT)
         Public Const OHCI_ED_F As UInt32 = (1 << 15) '//format 0 - inter, bulk or setup, 1 - isoch
 
         '/* Flags in the head field of an Endpoint Descriptor. */
@@ -90,6 +92,8 @@
         Public Const OHCI_FMI_FSMPS As UInt32 = &HFFFF0000UI
         Public Const OHCI_FMI_FIT As UInt32 = &H80000000UI
 
+        Public Const OHCI_FR_RT As UInt32 = (1UI << 31)
+
         Public Const OHCI_LS_THRESH As UInt32 = &H628
 
         Public Const OHCI_RHA_RW_MASK As UInt32 = &H0 '/* Mask of supported features. */
@@ -138,5 +142,7 @@
         Public Const OHCI_CC_DATAUNDERRUN As UInt32 = &H9
         Public Const OHCI_CC_BUFFEROVERRUN As UInt32 = &HC
         Public Const OHCI_CC_BUFFERUNDERRUN As UInt32 = &HD
+
+        Public Const OHCI_HRESET_FSBIR As UInt32 = (1 << 0)
     End Module
 End Namespace

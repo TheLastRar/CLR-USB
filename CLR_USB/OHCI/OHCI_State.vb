@@ -16,7 +16,8 @@ Namespace OHCI
 
         ' /* OHCI state */
         '/* Control partition */
-        Dim ctl, status As UInt32
+        Public ctl As UInt32
+        Dim status As UInt32
         Dim intr_status As UInt32
         Dim intr As UInt32
 
@@ -124,7 +125,7 @@ Namespace OHCI
                 rhport(i).port = New USB_Port(Me, i)
                 'port.attach = ohci_attach;
             Next
-            Reset()
+            hard_reset()
             '}
         End Sub
 
@@ -163,8 +164,8 @@ Namespace OHCI
                         Log_Verb("usb-ohci: USBirq")
                     End If
                     USBirq(1)
-                    End If
                 End If
+            End If
             '}
         End Sub
 
@@ -175,19 +176,38 @@ Namespace OHCI
             '}
         End Sub
 
+        'attatch/detatch (see USBPort)
+
         Private Sub die()
             Log_Error("ohci_die: DMA error")
             set_interrupt(OHCI_INTR_UE)
             bus_stop()
         End Sub
-        'attach (now part of USBPort)
 
-        '/* Reset the controller */
-        Sub Reset()
-            'Dim port As OHCI-Port
+        Sub roothub_reset()
             Dim i As Integer
 
-            ctl = 0
+            rhdesc_a = OHCI_RHA_NPS Or CUInt(num_ports)
+            rhdesc_b = &H0 '/* Impl. specific */
+            rhstatus = 0
+
+            For i = 0 To num_ports - 1
+                rhport(i).ctrl = 0
+                Dim dev As USB_Device = rhport(i).port.dev
+                If (Not IsNothing(dev)) Then
+                    rhport(i).port.attach(dev)
+                End If
+            Next
+
+
+        End Sub
+
+        '/* Reset the controller */
+        Sub soft_reset()
+            'Dim port As OHCI-Port
+
+            ctl = (ctl And OHCI_CTL_IR) Or OHCI_USB_SUSPEND
+            'old_ctl = 0
             status = 0
             intr_status = 0
             intr = OHCI_INTR_MIE
@@ -209,22 +229,17 @@ Namespace OHCI
             pstart = 0
             lst = OHCI_LS_THRESH
 
-            rhdesc_a = OHCI_RHA_NPS Or CUInt(num_ports)
-            rhdesc_b = &H0 '/* Impl. specific */
-            rhstatus = 0
-
-            For i = 0 To num_ports - 1
-                rhport(i).ctrl = 0
-                Dim dev As USB_Device = rhport(i).port.dev
-                If (Not IsNothing(dev)) Then
-                    rhport(i).port.attach(dev)
-                End If
-            Next
             Log_Verb("usb-ohci: Reset")
             '}
             clocks = 0
             eof_timer = 0
             sof_time = 0
+        End Sub
+
+        Sub hard_reset()
+            soft_reset()
+            ctl = 0
+            roothub_reset()
         End Sub
 
 #Region "defines"
@@ -381,13 +396,12 @@ Namespace OHCI
         End Function
 
         Private Function put_ed(ByVal addr As UInt32, ByVal ed As ohci_ed) As Boolean
-            Dim u32array(4 - 1) As UInt32
-            u32array(0) = ed.flags
-            u32array(1) = ed.tail
-            u32array(2) = ed.head
-            u32array(3) = ed._next
-            Return put_dwords(addr, u32array, 4)
-            '}
+            '/* ed->tail is under control of the HCD.
+            ' * Since just ed->head is changed by HC, just write back this
+            ' */
+            Dim u32array(1 - 1) As UInt32
+            u32array(0) = ed.head
+            Return put_dwords(addr + 8UI, u32array, 1)
         End Function
 
         Private Function put_td(ByVal addr As UInt32, ByVal td As ohci_td) As Boolean
@@ -714,6 +728,7 @@ Namespace OHCI
         Private Function service_td(ByRef ed As ohci_ed) As Boolean
             Dim dir As Integer
             Dim len As UInt64 = 0
+            Dim pktlen As UInt64 = 0
             Dim buf(8192 - 1) As Byte
             Dim str As String = Nothing
             Dim pid As Integer
@@ -760,9 +775,15 @@ Namespace OHCI
                     len = (td.be - td.cbp) + 1UI
                 End If
 
+                pktlen = len
                 If (len <> 0 AndAlso dir <> OHCI_TD_DIR_IN) Then
-                    'OutOfBounds Check added in
-                    If Not (copy_td(td, buf, CInt(len), False)) Then
+                    '/* The endpoint may not allow us to transfer it all now */
+                    pktlen = (ed.flags And OHCI_ED_MPS_MASK) >> OHCI_ED_MPS_SHIFT
+                    If (pktlen > len) Then
+                        Log_Info("usb-ohci: Large TD len" & pktlen.ToString() & ", > " & len.ToString())
+                        pktlen = len
+                    End If
+                    If Not (copy_td(td, buf, CInt(pktlen), False)) Then
                         Log_Error("usb-ohci: Copy TD read error at td.cbp " & td.cbp.ToString("X") & ", td.be at " & td.be.ToString("X"))
                         die()
                         Return False 'return 0;
@@ -779,7 +800,7 @@ Namespace OHCI
                     Continue For
                 End If
                 ret = dev.handle_packet(pid, CByte(OHCI_BM32(ed.flags, OHCI_ED_FA_MASK, OHCI_ED_FA_SHIFT)),
-                                        CByte(OHCI_BM32(ed.flags, OHCI_ED_EN_MASK, OHCI_ED_EN_SHIFT)), buf, CInt(len))
+                                        CByte(OHCI_BM32(ed.flags, OHCI_ED_EN_MASK, OHCI_ED_EN_SHIFT)), buf, CInt(pktlen))
 
                 If (ret <> USB_RET_NODEV) Then
                     Exit For
@@ -795,20 +816,20 @@ Namespace OHCI
                         Return False 'return 0;
                     End If
                 Else
-                    ret = CInt(len)
+                    ret = CInt(pktlen)
                 End If
             End If
 
             '/* Writeback */
-            If (ret = len OrElse (dir = OHCI_TD_DIR_IN AndAlso ret >= 0 AndAlso flag_r)) Then
+            If (ret = pktlen OrElse (dir = OHCI_TD_DIR_IN AndAlso ret >= 0 AndAlso flag_r)) Then
                 '/* Transmission succeeded. */
                 If (ret = len) Then
                     td.cbp = 0
                 Else
-                    td.cbp += CUInt(ret)
                     If ((td.cbp And &HFFF) + ret > &HFFF) Then
-                        td.cbp = td.cbp And &HFFFUI
-                        td.cbp = td.cbp Or (td.be And Not (&HFFFUI))
+                        td.cbp = (td.be And Not (&HFFFUI)) + ((td.cbp + CUInt(ret)) And &HFFFUI)
+                    Else
+                        td.cbp += CUInt(ret)
                     End If
                 End If
 
@@ -817,6 +838,11 @@ Namespace OHCI
                 td.flags = OHCI_SET_BM32(td.flags, OHCI_TD_CC_MASK, OHCI_TD_CC_SHIFT, OHCI_CC_NOERROR)
                 td.flags = OHCI_SET_BM32(td.flags, OHCI_TD_EC_MASK, OHCI_TD_EC_SHIFT, 0)
 
+                If ((dir <> OHCI_TD_DIR_IN) AndAlso ret <> len) Then
+                    '/* Partial packet transfer: TD not ready to retire yet */
+                    GoTo exit_no_retire
+                End If
+                '/* Setting ED_C is part of the TD retirement process */
                 ed.head = ed.head And Not OHCI_ED_C
                 If (td.flags And OHCI_TD_T0) <> 0 Then
                     ed.head = ed.head Or OHCI_ED_C
@@ -827,7 +853,7 @@ Namespace OHCI
                     td.flags = OHCI_SET_BM32(td.flags, OHCI_TD_CC_MASK, OHCI_TD_CC_SHIFT, OHCI_CC_DATAUNDERRUN)
                 Else
                     Select Case (ret)
-                        Case USB_RET_NODEV
+                        Case USB_RET_IOERROR, USB_RET_NODEV
                             td.flags = OHCI_SET_BM32(td.flags, OHCI_TD_CC_MASK, OHCI_TD_CC_SHIFT, OHCI_CC_DEVICENOTRESPONDING)
                             Return True
                         Case USB_RET_NAK
@@ -856,18 +882,22 @@ Namespace OHCI
             If (i < Me.done_count) Then
                 Me.done_count = i
             End If
-            put_td(addr, td)
+exit_no_retire:
+            If Not put_td(addr, td) Then
+                die()
+                Return True 'return 1;
+            End If
             Return (OHCI_BM32(td.flags, OHCI_TD_CC_MASK, OHCI_TD_CC_SHIFT) <> OHCI_CC_NOERROR) 'false on no-error
             '}
         End Function
 
         '/* Service an endpoint list. Returns nonzero if active TD were found. */
-        Private Function service_ed_list(head As UInt32) As Boolean
+        Private Function service_ed_list(head As UInt32, completion As Boolean) As Boolean
             Dim ed As New ohci_ed
             Dim next_ed As UInt32
             Dim cur As UInt32
             Dim active As Boolean
-            Dim completion As Boolean = False '//TODO No async here
+            '//TODO No async here
 
             active = False
 
@@ -884,7 +914,7 @@ Namespace OHCI
                     Return False 'return 0
                 End If
 
-                next_ed = ed._next And OHCI_EDPTR_MASK
+                next_ed = ed._next And OHCI_DPTR_MASK
 
                 If ((ed.head And OHCI_ED_H) <> 0 OrElse (ed.flags And OHCI_ED_K) <> 0) Then
                     'rest of for
@@ -910,7 +940,10 @@ Namespace OHCI
                         End If
                     End If
                 End While
-                put_ed(cur, ed) 'does not need ohci
+                If Not put_ed(cur, ed) Then 'does not need ohci
+                    die()
+                    Return False
+                End If
 
                 'rest of for
                 cur = next_ed
@@ -919,11 +952,32 @@ Namespace OHCI
             '}
         End Function
 
+        Private Sub process_lists(completion As Boolean)
+            If ((ctl And OHCI_CTL_CLE) <> 0 AndAlso (status And OHCI_STATUS_CLF) <> 0) Then
+                If (ctrl_cur <> 0 AndAlso ctrl_cur <> ctrl_head) Then
+                    Log_Verb("usb-ohci: head " & ctrl_head.ToString("X") & ", cur " & ctrl_cur)
+                End If
+                If Not (service_ed_list(ctrl_head, completion)) Then
+                    ctrl_cur = 0
+                    status = status And Not OHCI_STATUS_CLF
+                End If
+            End If
+
+            If (ctl And OHCI_CTL_BLE) <> 0 AndAlso (status And OHCI_STATUS_BLF) <> 0 Then
+                If Not (service_ed_list(bulk_head, completion)) Then
+                    bulk_cur = 0
+                    status = status And Not OHCI_STATUS_BLF
+                End If
+            End If
+        End Sub
+
         '/* Generate a SOF event, and set a timer for EOF */
-        Private Sub sof()
+        Private Sub sof(Optional fire_intr As Boolean = True)
             sof_time = get_clock()
             eof_timer = CULng(usb_frame_time)
-            set_interrupt(OHCI_INTR_SF)
+            If (fire_intr) Then
+                set_interrupt(OHCI_INTR_SF)
+            End If
             '}
         End Sub
 
@@ -937,24 +991,10 @@ Namespace OHCI
             If (ctl And OHCI_CTL_PLE) <> 0 Then
                 Dim n As Integer
                 n = frame_number And &H1F
-                service_ed_list(le32_to_cpu(dhcca.intr(n)))
-            End If
-            If ((ctl And OHCI_CTL_CLE) <> 0 AndAlso (status And OHCI_STATUS_CLF) <> 0) Then
-                If (ctrl_cur <> 0 AndAlso ctrl_cur <> ctrl_head) Then
-                    Log_Verb("usb-ohci: head " & ctrl_head.ToString("X") & ", cur " & ctrl_cur)
-                End If
-                If Not (service_ed_list(ctrl_head)) Then
-                    ctrl_cur = 0
-                    status = status And Not OHCI_STATUS_CLF
-                End If
+                service_ed_list(le32_to_cpu(dhcca.intr(n)), False)
             End If
 
-            If (ctl And OHCI_CTL_BLE) <> 0 AndAlso (status And OHCI_STATUS_BLF) <> 0 Then
-                If Not (service_ed_list(bulk_head)) Then
-                    bulk_cur = 0
-                    status = status And Not OHCI_STATUS_BLF
-                End If
-            End If
+            process_lists(False)
 
             '/* Stop if UnrecoverableError happened or ohci_sof will crash */
             If (intr_status And OHCI_INTR_UE) <> 0 Then
@@ -999,7 +1039,7 @@ Namespace OHCI
         Private Function bus_start() As Integer
             eof_timer = 0
             Log_Verb("usb-ohci: USB Operational")
-            sof()
+            sof(False)
             Return 1
             '}
         End Function
@@ -1087,11 +1127,13 @@ Namespace OHCI
                     bus_start()
                 Case OHCI_USB_SUSPEND
                     bus_stop()
+                    intr_status = intr_status And Not OHCI_INTR_SF
                     Log_Info("usb-ohci: USB Suspended")
                 Case OHCI_USB_RESUME
                     Log_Info("usb-ohci: USB Resume")
                 Case OHCI_USB_RESET
                     Log_Info("usb-ohci: USB Reset")
+                    roothub_reset()
             End Select
             intr_update()
         End Sub
@@ -1136,8 +1178,8 @@ Namespace OHCI
 
                 For i = 0 To num_ports - 1
                     port_power(i, False)
-                    Log_Info("usb-ohci: powered down all ports")
                 Next
+                Log_Info("usb-ohci: powered down all ports")
             End If
 
             If (val And OHCI_RHS_LPSC) <> 0 Then
@@ -1145,8 +1187,8 @@ Namespace OHCI
 
                 For i = 0 To num_ports - 1
                     port_power(i, True)
-                    Log_Info("usb-ohci: powered up all ports")
                 Next
+                Log_Info("usb-ohci: powered up all ports")
             End If
 
             If (val And OHCI_RHS_DRWE) <> 0 Then
@@ -1206,7 +1248,6 @@ Namespace OHCI
             If (old_state <> rhport(portnum).ctrl) Then
                 set_interrupt(OHCI_INTR_RHSC)
             End If
-            Return
             '}
         End Sub
 
@@ -1274,8 +1315,8 @@ Namespace OHCI
             '}
         End Function
 
+        Dim counter As Long = 0
         Public Sub mem_write(addr As UInt32, val As UInt32)
-
             addr -= mem_base
             '/* Only aligned writes are allowed on OHCI */
             If (addr And 3) <> 0 Then
@@ -1286,16 +1327,16 @@ Namespace OHCI
             If ((addr >= &H54UI) AndAlso (addr < (&H54UI + Convert.ToUInt32(num_ports) * 4UI))) Then
                 '/* HcRhPortStatus */
                 port_set_status(CInt((addr - &H54UI) >> 2UI), val)
-                'USBLog.WriteLn("HcRhPortStatus(" & ((addr - &H54UI) >> 2UI).ToString & ")")
+                Log_Verb("HcRhPortStatus(" & ((addr - &H54UI) >> 2UI).ToString & ")")
                 Return
             End If
 
             Select Case (addr >> 2UI)
                 Case 1 '/* HcControl */
-                    'USBLog.WriteLn("└─HcControl")
+                    Log_Verb("└─HcControl")
                     set_ctl(val)
                 Case 2 '/* HcCommandStatus */
-                    'USBLog.WriteLn("└─HcCommandStatus")
+                    Log_Verb("└─HcCommandStatus")
                     '/* SOC is read-only */
                     val = (val And Not OHCI_STATUS_SOC)
 
@@ -1303,58 +1344,58 @@ Namespace OHCI
                     status = status Or val
 
                     If (status And OHCI_STATUS_HCR) <> 0 Then
-                        Reset()
+                        soft_reset()
                     End If
                 Case 3 '/* HcInterruptStatus */
-                    'USBLog.WriteLn("└─HcInterruptStatus")
+                    Log_Verb("└─HcInterruptStatus")
                     intr_status = intr_status And Not val
                     intr_update()
                 Case 4 '/* HcInterruptEnable */
-                    'USBLog.WriteLn("└─HcInterruptEnable")
+                    Log_Verb("└─HcInterruptEnable")
                     intr = intr Or val
                     intr_update()
                 Case 5 '/* HcInterruptDisable */
-                    'USBLog.WriteLn("└─HcInterruptDisable")
+                    Log_Verb("└─HcInterruptDisable")
                     intr = intr And Not val
                     intr_update()
                 Case 6 ' /* HcHCCA */
-                    'USBLog.WriteLn("└─HcHCCA")
+                    Log_Verb("└─HcHCCA")
                     hcca = val And OHCI_HCCA_MASK
                 Case 8 '/* HcControlHeadED */
-                    'USBLog.WriteLn("└─HcControlHeadED")
+                    Log_Verb("└─HcControlHeadED")
                     ctrl_head = val And OHCI_EDPTR_MASK
                 Case 9 '/* HcControlCurrentED */
-                    'USBLog.WriteLn("└─HcControlCurrentED")
+                    Log_Verb("└─HcControlCurrentED")
                     ctrl_cur = val And OHCI_EDPTR_MASK
                 Case 10 '/* HcBulkHeadED */
-                    'USBLog.WriteLn("└─HcBulkHeadED")
+                    Log_Verb("└─HcBulkHeadED")
                     bulk_head = val And OHCI_EDPTR_MASK
                 Case 11 '/* HcBulkCurrentED */
-                    'USBLog.WriteLn("└─HcBulkCurrentED")
+                    Log_Verb("└─HcBulkCurrentED")
                     bulk_cur = val And OHCI_EDPTR_MASK
                 Case 13 '/* HcFmInterval */
-                    'USBLog.WriteLn("└─HcFmInterval")
+                    Log_Verb("└─HcFmInterval")
                     fsmps = (val And OHCI_FMI_FSMPS) >> 16UI
                     fit = (val And OHCI_FMI_FIT) >> 31UI
                     set_frame_interval(val)
                 Case 16 '/* HcPeriodicStart */
-                    'USBLog.WriteLn("└─HcPeriodicStart")
+                    Log_Verb("└─HcPeriodicStart")
                     pstart = val And &HFFFFUI
                 Case 17 '/* HcLSThreshold */
-                    'USBLog.WriteLn("└─HcLSThreshold")
+                    Log_Verb("└─HcLSThreshold")
                     lst = val And &HFFFFUI
                 Case 18 '/* HcRhDescriptorA */
-                    'USBLog.WriteLn("└─HcRhDescriptorA")
+                    Log_Verb("└─HcRhDescriptorA")
                     rhdesc_a = rhdesc_a And Not OHCI_RHA_RW_MASK
                     rhdesc_a = rhdesc_a Or (val And OHCI_RHA_RW_MASK)
                 Case 19 '/* HcRhDescriptorB */
-                    'USBLog.WriteLn("└─<>")
+                    Log_Verb("└─<>")
 
                 Case 20 '/* HcRhStatus */
-                    'USBLog.WriteLn("└─HcRhStatus")
+                    Log_Verb("└─HcRhStatus")
                     set_hub_status(val)
                 Case Else
-                    Log_Error("Error: ohci_write: Bad offset " & addr.ToString("X")) 'was not stderr in original
+                    Log_Error("Error: ohci_write: Bad offset 0x" & addr.ToString("X") & " (" & (addr >> 2UI) & ")") 'was not stderr in original
             End Select
             '}
         End Sub

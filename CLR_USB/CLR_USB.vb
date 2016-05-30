@@ -34,7 +34,7 @@ Class CLR_USB
 
     Private Shared Sub Reset()
         If (Not IsNothing(qemu_ohci)) Then
-            qemu_ohci.Reset()
+            qemu_ohci.hard_reset()
             remaining = 0
         End If
     End Sub
@@ -93,6 +93,10 @@ Class CLR_USB
         Next
 
         CLR_PSE_PluginLog.Open(LogFolderPath, "USB_CLR.log", "USB_CLR", logSources)
+
+        For Each source As USBLogSources In sources
+            CLR_PSE_PluginLog.SetSourceLogLevel(SourceLevels.All, (CUShort(source)))
+        Next
 
         CLR_PSE_PluginLog.SetSourceUseStdOut(False, USBLogSources.PluginInterface)
         CLR_PSE_PluginLog.SetSourceUseStdOut(False, USBLogSources.USBInterface)

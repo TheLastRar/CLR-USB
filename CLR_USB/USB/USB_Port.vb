@@ -1,17 +1,19 @@
-﻿Namespace USB
+﻿Imports CLRUSB.OHCI
+
+Namespace USB
     Class USB_Port
-        Dim opaque As OHCI.OHCI_State
+        Dim opaque As OHCI_State
         Dim index As Integer
         Dim _next As USB_Port
         Public dev As USB_Device
 
-        Sub New(par_opaque As OHCI.OHCI_State, par_index As Integer)
+        Sub New(par_opaque As OHCI_State, par_index As Integer)
             opaque = par_opaque
             index = par_index
         End Sub
 
         Public Sub attach(dev As USB_Device) 'ohci_attatch
-            Dim s As OHCI.OHCI_State = Me.opaque
+            Dim s As OHCI_State = Me.opaque
             Dim old_state As UInt32 = s.rhport(index).ctrl
 
             If (Not IsNothing(dev)) Then
@@ -24,28 +26,34 @@
                     '}
                 End If
                 '/* set connect status */
-                s.rhport(index).ctrl = s.rhport(index).ctrl Or (OHCI.OHCI_PORT_CCS Or OHCI.OHCI_PORT_CSC)
+                s.rhport(index).ctrl = s.rhport(index).ctrl Or (OHCI_PORT_CCS Or OHCI_PORT_CSC)
 
                 '/* update speed */
                 If dev.Speed = USB_SPEED_LOW Then
-                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI.OHCI_PORT_LSDA
+                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI_PORT_LSDA
                 Else
-                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI.OHCI_PORT_LSDA
+                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI_PORT_LSDA
                 End If
+
+                '/* notify of remote-wakeup */
+                If (s.ctl And OHCI_CTL_HCFS) = OHCI_USB_SUSPEND Then
+                    s.set_interrupt(OHCI_INTR_RD)
+                End If
+
                 s.rhport(index).port.dev = dev
                 '//* send the attach message */
                 dev.handle_packet(USB_MSG_ATTACH, 0, 0, Nothing, 0)
                 Log_Info("usb-ohci: Attached port " & index)
             Else
                 '/* set connect status */
-                If (s.rhport(index).ctrl And OHCI.OHCI_PORT_CCS) <> 0 Then
-                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI.OHCI_PORT_CCS
-                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI.OHCI_PORT_CSC
+                If (s.rhport(index).ctrl And OHCI_PORT_CCS) <> 0 Then
+                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI_PORT_CCS
+                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI_PORT_CSC
                 End If
                 '/* disable port */
-                If (s.rhport(index).ctrl And OHCI.OHCI_PORT_PES) <> 0 Then
-                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI.OHCI_PORT_PES
-                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI.OHCI_PORT_PESC
+                If (s.rhport(index).ctrl And OHCI_PORT_PES) <> 0 Then
+                    s.rhport(index).ctrl = s.rhport(index).ctrl And Not OHCI_PORT_PES
+                    s.rhport(index).ctrl = s.rhport(index).ctrl Or OHCI_PORT_PESC
                 End If
                 dev = s.rhport(index).port.dev
                 If (Not IsNothing(dev)) Then
@@ -55,8 +63,9 @@
                 s.rhport(index).port.dev = Nothing
                 Log_Info("usb-ohci: Detached port " & index)
             End If
+
             If (old_state <> s.rhport(index).ctrl) Then
-                s.set_interrupt(OHCI.OHCI_INTR_RHSC)
+                s.set_interrupt(OHCI_INTR_RHSC)
             End If
             '}
         End Sub

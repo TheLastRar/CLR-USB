@@ -151,7 +151,7 @@
                     End Select
                 Case Else
 fail:
-                    Log_Error("STALL with pid=" & pid & ", devAddr=" & devaddr & ", devEp=" & devep & ", len=" & len)
+                    Log_Error("STALL with pid=0x" & pid.ToString("X") & ", devAddr=" & devaddr & ", devEp=" & devep & ", len=" & len)
                     ret = USB_RET_STALL
             End Select
             Return ret

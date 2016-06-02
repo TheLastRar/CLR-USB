@@ -171,6 +171,7 @@
     <Compile Include="USB\Keyboard\API_Keyboard.vb" />
     <Compile Include="USB\Keyboard\RAW_Keyboard.vb" />
     <Compile Include="USB\Keyboard\USB_Keyboard.vb" />
+    <Compile Include="USB\Keyboard\ASC_Keyboard.vb" />
     <Compile Include="USB\Keyboard\WM_Keyboard.vb" />
     <Compile Include="USB\USB_Constants.vb" />
     <Compile Include="USB\USB_Device.vb" />

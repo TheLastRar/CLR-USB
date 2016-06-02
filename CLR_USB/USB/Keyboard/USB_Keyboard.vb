@@ -413,13 +413,14 @@ Namespace USB.Keyboard
                 keyboard_grabbed = True
             End If
 
+            hostKeyboard.Poll()
+
             SyncLock KeysPressed
-                'PollAPI()
                 'check if forground
                 If hWndTop <> Utils.GetForegroundWindow() Then
                     KeysPressed.Clear()
                 End If
-
+                ''TODO
                 If KeysPressed.Contains(Keys.RControlKey) Then
                     CaptureKeyboard = Not CaptureKeyboard
                     If CaptureKeyboard Then
@@ -655,27 +656,6 @@ fail:
             Return ret
         End Function
 
-        'Private Sub SyncLockKeys()
-        '    'Sync Caps/Numlock/scroll lock
-        '    If Control.IsKeyLocked(Keys.CapsLock) <> CapsOn Then
-        '        KeyQueue.Add(Keys.CapsLock)
-        '    End If
-        '    If Control.IsKeyLocked(Keys.NumLock) <> NumLockOn Then
-        '        KeyQueue.Add(Keys.NumLock)
-        '    End If
-        '    If Control.IsKeyLocked(Keys.Scroll) <> ScrollLck Then
-        '        KeyQueue.Add(Keys.Scroll)
-        '    End If
-        'End Sub
-
-        'Private Sub PollAPI()
-        '    If UseEvents Then
-        '        'do nothing
-        '    Else
-        '        'fill KeysPressed with GetAsyncKeys Data
-        '        'or other polled api
-        '    End If
-        'End Sub
         Private Function PollIsUpdate() As Boolean
             If KeysPressed.Count = 0 AndAlso PastKeysPressed.Count = 0 Then Return False
 
@@ -906,6 +886,8 @@ fail:
                     hostKeyboard = New WM_Keyboard(_hWnd)
                 Case EnumAPI.RAW
                     hostKeyboard = New RAW_Keyboard(_hWnd, RawAPIKeyboard)
+                Case EnumAPI.AsyncKeys
+                    hostKeyboard = New GetAsyncKey_Keyboard(_hWnd)
                 Case Else
                     Throw New NotImplementedException("Unknow API ID")
             End Select

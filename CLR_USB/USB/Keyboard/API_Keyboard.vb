@@ -49,6 +49,11 @@ Namespace USB.Keyboard
             Return buf.ToString
         End Function
 
+        Public Overridable Sub Poll()
+            'Used by polling APIs to check for pressed keys
+            'And raise KeyDown/KeyUp events as needed
+        End Sub
+
         Public MustOverride Sub Close()
 
 #Region "IDisposable Support"

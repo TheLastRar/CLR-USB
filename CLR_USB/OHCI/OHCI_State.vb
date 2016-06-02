@@ -1007,6 +1007,7 @@ exit_no_retire:
             '/* XXX: endianness */
             frame_number = CUShort((frame_number + 1UI) And &HFFFFUI) 'reaches Uint16.MaxValue and can't increment further
             dhcca.frame = cpu_to_le16(frame_number)
+            dhcca.pad = 0
 
             If (Me.done_count = 0 AndAlso Not ((intr_status And OHCI_INTR_WD) <> 0)) Then
                 If Not (Me.done <> 0) Then
@@ -1251,6 +1252,8 @@ exit_no_retire:
             '}
         End Sub
 
+        Dim c1 As UInt32 = &H47473 'max UintMax (Fuck it)
+
         Public Function mem_read(addr As UInt32) As UInt32
             addr -= mem_base
             '/* Only aligned reads are allowed on OHCI */
@@ -1303,7 +1306,10 @@ exit_no_retire:
                 Case 17 '/* HcLSThreshold */
                     Return lst
                 Case 18 '/* HcRhDescriptorA */
-                    Return rhdesc_a
+                    'Dim temp As UInt32 = c1
+                    'c1 = c1 + 1UI
+                    Return rhdesc_a'temp'rhdesc_a
+                    'Return intr_status
                 Case 19 '/* HcRhDescriptorB */
                     Return rhdesc_b
                 Case 20 '/* HcRhStatus */

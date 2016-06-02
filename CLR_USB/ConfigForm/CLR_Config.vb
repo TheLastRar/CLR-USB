@@ -74,10 +74,11 @@ Namespace Config
             TranslateSelect.ValueSelected = Data.ToRegion
             Dim RawAPI As New USB.Keyboard.RAW_Keyboard()
 
-            Const RawAPISelectionStart As Integer = 1
+            Const RawAPISelectionStart As Integer = 2
 
-            Dim APIOptions(RawAPI.ListOfDevices.Count) As String
+            Dim APIOptions(RawAPI.ListOfDevices.Count + 1) As String
             APIOptions(0) = "Windows Messaging"
+            APIOptions(1) = "GetAsyncKey"
             Dim DeviceNames As List(Of String) = RawAPI.ListOfDevices.Keys.ToList()
             Dim index As Integer = RawAPISelectionStart
             Dim SelectedIndex As Integer = Data.UseAPI

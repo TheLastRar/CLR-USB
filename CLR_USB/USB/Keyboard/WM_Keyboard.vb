@@ -1,5 +1,6 @@
 ﻿Imports System.Runtime.InteropServices
 Imports System.Windows.Forms
+Imports PSE
 
 Namespace USB.Keyboard
     Class WM_Keyboard
@@ -7,7 +8,7 @@ Namespace USB.Keyboard
 
         Private Class NativeMethods
             <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall, SetLastError:=True)>
-            Public Shared Function SetWindowsHookEx(ByVal idHook As Integer, ByVal HookProc As KBDLLHookProc, ByVal hInstance As IntPtr, ByVal wParam As IntPtr) As IntPtr
+            Public Shared Function SetWindowsHookEx(ByVal idHook As Integer, ByVal HookProc As KBDLLHookProc, ByVal hMod As IntPtr, ByVal dwThreadId As Integer) As IntPtr
             End Function
             <DllImport("User32.dll", CharSet:=CharSet.Auto, CallingConvention:=CallingConvention.StdCall)>
             Public Shared Function CallNextHookEx(ByVal idHook As IntPtr, ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
@@ -49,6 +50,9 @@ Namespace USB.Keyboard
 
         Protected Function KeyboardHookProc(ByVal nCode As Integer, ByVal wParam As UIntPtr, ByVal lParam As IntPtr) As IntPtr
             Try
+                ''Profile Code
+                Dim startUtcNow As Date = Date.UtcNow
+                ''
                 If (nCode = HC_ACTION) Then
                     Dim struct As KBDLLHOOKSTRUCT
                     Select Case wParam.ToUInt64
@@ -60,8 +64,14 @@ Namespace USB.Keyboard
                             RaiseKeyUp(CType(struct.vkCode, Keys))
                     End Select
                 End If
+                ''Profile Code
+                Dim endUtcNow As Date = Date.UtcNow
+                If ((endUtcNow - startUtcNow).TotalSeconds > 1.0) Then
+                    Log_Error("KeyboardProc Took Too Long")
+                End If
+                ''
             Catch e As Exception
-                PSE.CLR_PSE_PluginLog.MsgBoxError(e)
+                CLR_PSE_PluginLog.MsgBoxError(e)
                 Throw
             End Try
             Return NativeMethods.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam)
@@ -75,8 +85,7 @@ Namespace USB.Keyboard
             ''Also works with nullptr on latest WinVista
 
             Dim hMod As IntPtr = IntPtr.Zero
-
-            HHookID = NativeMethods.SetWindowsHookEx(WH_KEYBOARD_LL, KBDLLHookProcDelegate, hMod, IntPtr.Zero)
+            HHookID = NativeMethods.SetWindowsHookEx(WH_KEYBOARD_LL, KBDLLHookProcDelegate, hMod, 0)
 
             If HHookID = IntPtr.Zero Then
                 Throw New Exception("Could not set keyboard hook. Error: " + Marshal.GetLastWin32Error.ToString())
@@ -88,6 +97,16 @@ Namespace USB.Keyboard
                 NativeMethods.UnhookWindowsHookEx(HHookID)
                 HHookID = IntPtr.Zero
             End If
+        End Sub
+
+        Private Shared Sub Log_Error(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.[Error], (USBLogSources.USBKeyboard), str)
+        End Sub
+        Private Shared Sub Log_Info(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.Information, USBLogSources.USBKeyboard, str)
+        End Sub
+        Private Shared Sub Log_Verb(str As String)
+            CLR_PSE_PluginLog.WriteLine(TraceEventType.Verbose, (USBLogSources.USBKeyboard), str)
         End Sub
 
     End Class

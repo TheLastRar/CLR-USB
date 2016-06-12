@@ -36,9 +36,9 @@ Namespace USB
                 End If
 
                 '/* notify of remote-wakeup */
-                If (s.ctl And OHCI_CTL_HCFS) = OHCI_USB_SUSPEND Then
-                    s.set_interrupt(OHCI_INTR_RD)
-                End If
+                'If (s.ctl And OHCI_CTL_HCFS) = OHCI_USB_SUSPEND Then
+                '    s.set_interrupt(OHCI_INTR_RD)
+                'End If
 
                 s.rhport(index).port.dev = dev
                 '//* send the attach message */

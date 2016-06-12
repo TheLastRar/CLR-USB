@@ -30,6 +30,11 @@ Namespace USB.Keyboard
             End If
 
             For key As Integer = 8 To 255 - 1
+                If (key = Keys.ControlKey Or
+                    key = Keys.Menu Or
+                    key = Keys.ShiftKey) Then
+                    Continue For
+                End If
                 newState(key) = CByte((NativeMethods.GetAsyncKeyState(key) >> 8) >> 7)
             Next
 

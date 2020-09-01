@@ -1,5 +1,4 @@
-﻿Imports RGiesecke.DllExport
-Imports System.Runtime.InteropServices
+﻿Imports System.Runtime.InteropServices
 Imports Plugin = CLRUSB.CLR_USB
 
 Namespace Global.PSE
